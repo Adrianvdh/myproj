@@ -1,22 +1,25 @@
+import os
 import environ
 from pathlib import Path
+from pkg_resources import get_distribution
+from redis import BlockingConnectionPool
+
+env = environ.Env()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-env = environ.Env()
+SECRET_KEY = env('SECRET_KEY', 'hd1n-(j+2vkz6dns41u6o+%_%wn0)9==%(=$-ga%uz*aefa(&f')
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
+DEBUG = env.bool('DEBUG', False)
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-c-80dz)fk#)7kc&xmoua4^ws8g*=^w58m7ntziwp^83%-bh=^0'
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[''])
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
 
-ALLOWED_HOSTS = []
-
+# Get distribution version used for Django cache keys
+# https://docs.djangoproject.com/en/3.2/ref/settings/#version
+# e.g. value: '0.1.dev2+ge8740cb.d20211016'
+VERSION = env('VERSION', default=get_distribution('myproj').version)
 
 # Application definition
 
@@ -29,6 +32,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    'huey.contrib.djhuey',
 ]
 
 MIDDLEWARE = [
@@ -79,6 +84,33 @@ DATABASES = {
 }
 
 
+REDIS_URL = env('REDIS_URL', default='redis://localhost:6379/')
+REDIS_CACHE_URL = env('REDIS_CACHE_URL', default=REDIS_URL + '0')
+REDIS_QUEUE_URL = env('REDIS_QUEUE_URL', default=REDIS_URL + '1')
+
+# Redis cache backend
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        # https://docs.djangoproject.com/en/3.2/topics/cache/#cache-arguments
+        'LOCATION': REDIS_CACHE_URL,
+        'KEY_PREFIX': DB_NAME,
+        'VERSION': VERSION
+    }
+}
+
+# -----------------------------------------------------------------------------
+# Huey task queue
+# see: http://huey.readthedocs.io/en/latest/django.html
+# -----------------------------------------------------------------------------
+HUEY = {
+    'name': DB_NAME,
+    'immediate': False,  # run without queue in dev/test
+    'results': False,
+    'connection': {'connection_pool': BlockingConnectionPool.from_url(REDIS_QUEUE_URL)}
+}
+
+
 # Password validation
 # https://docs.djangoproject.com/en/3.2/ref/settings/#auth-password-validators
 
@@ -97,6 +129,18 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# ------------------------------------------------------------------------------
+# SECURITY
+# ------------------------------------------------------------------------------
+# https://docs.djangoproject.com/en/dev/ref/settings/#session-cookie-httponly
+SESSION_COOKIE_HTTPONLY = True
+# https://docs.djangoproject.com/en/dev/ref/settings/#csrf-cookie-httponly
+CSRF_COOKIE_HTTPONLY = True
+# https://docs.djangoproject.com/en/dev/ref/settings/#secure-browser-xss-filter
+SECURE_BROWSER_XSS_FILTER = True
+# https://docs.djangoproject.com/en/dev/ref/settings/#x-frame-options
+X_FRAME_OPTIONS = 'DENY'
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/3.2/topics/i18n/
@@ -112,10 +156,23 @@ USE_L10N = True
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/3.2/howto/static-files/
 
+# ------------------------------------------------------------------------------
+# Static files
+# ------------------------------------------------------------------------------
+# https://docs.djangoproject.com/en/dev/ref/contrib/staticfiles/#staticfiles-finders
+STATICFILES_FINDERS = [
+    'django.contrib.staticfiles.finders.FileSystemFinder',
+    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
+]
+# https://docs.djangoproject.com/en/dev/ref/settings/#static-root
+STATIC_ROOT = env('STATIC_ROOT', default=os.path.join(BASE_DIR, 'static_root'))
+# https://docs.djangoproject.com/en/dev/ref/settings/#static-url
 STATIC_URL = '/static/'
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = env('MEDIA_ROOT', default=os.path.join(BASE_DIR, 'media_root'))
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
