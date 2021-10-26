@@ -7,8 +7,7 @@ from redis import BlockingConnectionPool
 env = environ.Env()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-
+BASE_DIR = env('BASE_DIR', default='./')
 SECRET_KEY = env('SECRET_KEY', default='hd1n-(j+2vkz6dns41u6o+%_%wn0)9==%(=$-ga%uz*aefa(&f')
 
 DEBUG = env.bool('DEBUG', False)
